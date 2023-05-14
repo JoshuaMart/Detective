@@ -1,0 +1,14 @@
+wordlist_path: './recon/wordlists'
+resolvers: 'https://raw.githubusercontent.com/trickest/resolvers/main/resolvers.txt'
+resolvers_trusted: 'https://raw.githubusercontent.com/trickest/resolvers/main/resolvers-trusted.txt'
+bruteforce: 'https://raw.githubusercontent.com/n0kovo/n0kovo_subdomains/main/n0kovo_subdomains_huge.txt'
+naabu_top_ports: 100
+naabu_ports_exclusions:
+  - 22
+  - 25
+  - 53
+  - 110
+  - 587
+  - 465
+  - 995
+max_hostnames_permutations: 1500

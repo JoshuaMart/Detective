@@ -1,0 +1,5 @@
+services:
+  recon:
+    build: .
+    volumes:
+      - './src:/detective'
