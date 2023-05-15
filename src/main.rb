@@ -7,7 +7,7 @@ require 'yaml'
 require_relative 'recon/recon'
 
 options = {
-  base_path: './detective'
+  base_path: './recon'
 }
 
 optparse = OptionParser.new do |opts|
