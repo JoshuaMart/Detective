@@ -9,6 +9,7 @@ tar -xf go$GO_VER\.linux-amd64.tar.gz -C /usr/local/ && \
 rm go$GO_VER\.linux-amd64.tar.gz
 
 export PATH="${PATH}:/usr/local/go/bin/:/root/go/bin/"
+echo 'export PATH="$PATH:/usr/local/go/bin/:/root/go/bin/"' >> ~/.bashrc
 
 ## Install ProjectDiscovery Tools
 go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest && \
@@ -25,10 +26,10 @@ go install -v github.com/d3mondev/puredns/v2@latest
 
 ## Install MassDNS
 git clone https://github.com/blechschmidt/massdns && \
-cd massdns && make && mv bin/massdns /usr/local/bin/
+cd massdns && make && mv bin/massdns /usr/local/bin/ && cd ../ && rm -r massdns
 
 ## Install VHostFinder
 go install -v github.com/wdahlenburg/VhostFinder@latest
 
 ## Install gems
-gem install bundler && bundle install
+cd src && gem install bundler && bundle install && cd ../

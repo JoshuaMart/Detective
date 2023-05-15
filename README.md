@@ -78,7 +78,7 @@ docker run -v ./src:/detective dective -d domain.tld
 
 ```bash
 bash install.sh
-ruby src/main.rb -d domain.tld
+cd src && ruby main.rb -d domain.tld
 ```
 
 ```bash
