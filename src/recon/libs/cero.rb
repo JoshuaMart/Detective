@@ -4,7 +4,7 @@ class Scan
   # Cero Class : https://github.com/glebarez/cero
   class Cero
     def self.check(options)
-      cmd = "cat #{File.join(options[:result_path], 'to_tls.txt')} | cero -d"
+      cmd = "cat #{File.join(options[:result_path], 'to_cero.txt')} | cero -d"
       cero_result = `#{cmd}`
 
       hostnames = []
