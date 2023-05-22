@@ -46,12 +46,9 @@ class Scan
 
     def self.minimize(results)
       results.each do |_, data|
-        data[:vhosts].each do |_, vhosts|
-          next unless %w[80 443].all? { |port| vhosts.key?(port) } &&
-                      vhosts.dig('80', 'location') == vhosts.dig('443', 'url')
-          next unless vhosts.dig('80', 'hash', 'body_sha256') == vhosts.dig('443', 'hash', 'body_sha256')
-
-          vhosts.delete('80')
+        data[:vhosts].each do |hostname, vhosts|
+          data[:vhosts][hostname].delete('80') if vhosts.dig('80', 'location') == vhosts.dig('443', 'url') ||
+                                                  vhosts.dig('80', 'hash', 'body_sha256') == vhosts.dig('443', 'hash', 'body_sha256')
         end
       end
     end
