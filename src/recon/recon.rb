@@ -9,6 +9,7 @@ require_relative 'libs/cero'
 require_relative 'libs/httpx'
 require_relative 'libs/subfinder'
 require_relative 'libs/naabu'
+require_relative 'libs/nuclei'
 require_relative 'libs/puredns'
 require_relative 'libs/utilities'
 require_relative 'libs/vhostfinder'
@@ -88,7 +89,7 @@ class Scan
     Naabu.normalize(options, results)
 
     Utilities.log_info('[+] Check hostnames with HTTPX') unless options[:silent]
-    Httpx.check(results)
+    Httpx.check(results, options)
     Httpx.minimize(results) if options[:minimize]
 
     if options[:vhosts]
@@ -114,6 +115,9 @@ class Scan
     Utilities.execute_cmd(cmd)
 
     cmd = "wget #{options[:bruteforce]} -O #{File.join(options[:wordlist_path], 'bruteforce.txt')}"
+    Utilities.execute_cmd(cmd)
+
+    cmd = 'nuclei -ut'
     Utilities.execute_cmd(cmd)
   end
 end

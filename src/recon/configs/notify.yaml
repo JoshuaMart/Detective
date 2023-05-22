@@ -1,4 +1,7 @@
 slack:
-  - id: "slack"
+  - id: "infos"
     slack_format: "{{data}}"
-    slack_webhook_url: "https://hooks.slack.com/services/XXXXX/XXXXX/XXXXX"
+    slack_webhook_url: "https://hooks.slack.com/services/XXXXXXXXX/XXXXXXXXX/XXXXXXXXX"
+  - id: "vulns"
+    slack_format: "{{data}}"
+    slack_webhook_url: "https://hooks.slack.com/services/XXXXXXXXX/XXXXXXXXX/XXXXXXXXX"

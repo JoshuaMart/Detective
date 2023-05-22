@@ -22,6 +22,10 @@ optparse = OptionParser.new do |opts|
     options[:domain] = value
   end
 
+  opts.on('-t', '--takeover', 'Check for subdomains takeover with Nuclei') do
+    options[:takeover] = true
+  end
+
   opts.on('-m', '--minimize', 'Minimize HTTPX results') do
     options[:minimize] = true
   end

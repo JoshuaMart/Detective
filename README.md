@@ -26,7 +26,10 @@ Example output :
           "url": "https://www.domain.tld",
           "title": "Example Title",
           "status_code": 200,
-          "technologies": ["PHP"]
+          "technologies": ["PHP"],
+          "nuclei_tech": [
+            "waf"
+          ]
         }
       }
     }
@@ -40,7 +43,10 @@ Example output :
           "url": "https://other.domain.tld",
           "title": "Example Title",
           "status_code": 200,
-          "technologies": ["PHP","MySQL"]
+          "technologies": ["PHP","MySQL"],
+          "nuclei_tech": [
+            "waf"
+          ]
         }
       },
       "another.domain.tld": {
@@ -48,7 +54,10 @@ Example output :
           "host": "another.domain.tld",
           "title": "Example Title",
           "status_code": 200,
-          "technologies": ["PHP","MySQL"]
+          "technologies": ["PHP","MySQL"],
+          "nuclei_tech": [
+            "waf"
+          ]
         }
       }
     }
@@ -73,7 +82,7 @@ You must then modify the configuration files in `./src/recon/configs`. It is the
 
 ```docker
 docker build . -t detective
-docker run -v ./src:/detective dective -d domain.tld
+docker run -v ./src:/detective detective -d domain.tld
 ```
 
 ```bash
@@ -85,6 +94,7 @@ cd src && ruby main.rb -d domain.tld
 Usage: detective.rb [options]
     -h, --help                       Display this screen
     -d, --domain domain              Domain to scan
+    -t, --takeover                   Check for subdomains takeover with Nuclei
     -m, --minimize                   Minimize HTTPX results
     -s, --silent                     Does not display logs messages
         --vhosts                     vHosts bruteforce

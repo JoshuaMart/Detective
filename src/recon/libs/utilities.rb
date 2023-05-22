@@ -38,8 +38,10 @@ class Scan
       system(cmd, %i[out err] => File::NULL)
     end
 
-    def self.notify(message, options)
-      cmd = "echo '#{message}' | notify -silent -pc #{File.join(options[:base_path], 'configs/notify.yaml')}"
+    def self.notify(message, options, id = 'infos')
+      config_file = File.join(options[:base_path], 'configs/notify.yaml')
+
+      cmd = "echo '#{message}' | notify -silent -pc #{config_file} -id #{id}"
       execute_cmd(cmd)
     end
   end

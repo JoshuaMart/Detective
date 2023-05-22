@@ -3,7 +3,7 @@
 class Scan
   # Httpx Class : https://github.com/projectdiscovery/httpx
   class Httpx
-    def self.check(results)
+    def self.check(results, options)
       pool = Concurrent::FixedThreadPool.new(5)
 
       results.each do |_, data|
@@ -15,7 +15,10 @@ class Scan
             httpx_results&.each_line do |result|
               result = JSON.parse(result)
 
-              data[:vhosts][hostname][result['port']] = extract_infos(result)
+              vhost = extract_infos(result)
+              Nuclei.check(vhost, options)
+
+              data[:vhosts][hostname][result['port']] = vhost
             end
           end
         end
