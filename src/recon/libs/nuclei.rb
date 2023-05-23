@@ -6,7 +6,7 @@ class Scan
     def self.check(vhost, options)
       tags = options[:takeover] ? 'tech,takeover' : 'tech'
 
-      cmd = "nuclei -u '#{vhost[:url]}' -tags #{tags} -jsonl -silent -eid tech-detect"
+      cmd = "nuclei -u '#{vhost[:url]}' -tags #{tags} -jsonl -silent -eid #{options[:nuclei_eid].join(',')}"
       nuclei_results = `#{cmd}`
 
       vhost[:nuclei_tech] = []

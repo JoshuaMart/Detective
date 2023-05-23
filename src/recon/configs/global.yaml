@@ -12,3 +12,9 @@ naabu_ports_exclusions:
   - 465
   - 995
 max_hostnames_permutations: 1500
+nuclei_eid:
+  - 'tech-detect'
+  - 'waf-detect'
+  - 'dns-waf-detect'
+  - 'favicon-detect'
+  - 'metatag-cms'
