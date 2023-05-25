@@ -28,7 +28,7 @@ class Scan
     end
 
     def self.prepare_vhosts(options)
-      cmd = "grep -vxFf #{File.join(options[:result_path], 'puredns.txt')}"
+      cmd = "grep -vxFf #{File.join(options[:result_path], 'subfinder_resolved.txt')}"
       cmd += " #{File.join(options[:result_path], 'subfinder.txt')}"
       cmd += " > #{File.join(options[:result_path], 'possible_vhosts.txt')}"
 
