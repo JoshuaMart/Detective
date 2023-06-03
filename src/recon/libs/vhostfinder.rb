@@ -14,9 +14,9 @@ class Scan
         vhosts_results.split("\n").each do |result|
           next unless result.start_with?('[+]')
 
-          result.gsub!('[+] ', '')
+          hostname = result.split.last
 
-          cmd = "httpx -u '#{ip}' -H 'Host: #{result}' -silent -p https:443 -timeout 10 -td -title -json"
+          cmd = "httpx -u '#{ip}' -H 'Host: #{hostname}' -silent -p https:443 -timeout 10 -td -title -json"
           httpx_result = `#{cmd}`
           next if httpx_result&.empty?
 
