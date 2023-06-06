@@ -16,7 +16,7 @@ class Scan
               result = JSON.parse(result)
 
               vhost = extract_infos(result)
-              Nuclei.check(vhost, options)
+              Nuclei.check(vhost, options) if options[:takeover]
 
               data[:vhosts][hostname][result['port']] = vhost
             end

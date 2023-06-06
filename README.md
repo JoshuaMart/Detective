@@ -26,10 +26,7 @@ Example output :
           "url": "https://www.domain.tld",
           "title": "Example Title",
           "status_code": 200,
-          "technologies": ["PHP"],
-          "nuclei_tech": [
-            "waf"
-          ]
+          "technologies": ["PHP"]
         }
       }
     }
@@ -43,10 +40,7 @@ Example output :
           "url": "https://other.domain.tld",
           "title": "Example Title",
           "status_code": 200,
-          "technologies": ["PHP","MySQL"],
-          "nuclei_tech": [
-            "waf"
-          ]
+          "technologies": ["PHP","MySQL"]
         }
       },
       "another.domain.tld": {
@@ -54,10 +48,7 @@ Example output :
           "host": "another.domain.tld",
           "title": "Example Title",
           "status_code": 200,
-          "technologies": ["PHP","MySQL"],
-          "nuclei_tech": [
-            "waf"
-          ]
+          "technologies": ["PHP","MySQL"]
         }
       }
     }
