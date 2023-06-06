@@ -22,7 +22,7 @@ class Scan
 
           httpx_result = JSON.parse(httpx_result)
 
-          data[:vhosts][result]['443'] = extract_infos(httpx_result, hostname)
+          data[:vhosts][hostname] = { '443' => extract_infos(httpx_result, hostname) }
         end
       end
     end
