@@ -47,8 +47,20 @@ class Scan
     def self.minimize(results)
       results.each do |_, data|
         data[:vhosts].each do |hostname, vhosts|
-          data[:vhosts][hostname].delete('80') if vhosts.dig('80', 'location') == vhosts.dig('443', 'url') ||
-                                                  vhosts.dig('80', 'hash', 'body_sha256') == vhosts.dig('443', 'hash', 'body_sha256')
+
+          remove_vhost = false
+          if vhosts.dig('80', :location)
+            location = vhosts.dig('80', :location)
+            location = location[0..-2] if location.end_with?('/')
+
+            remove_vhost = location == vhosts.dig('443', :url)
+          end
+
+          if vhosts.dig('80', :body_sha) && !remove_vhost
+            remove_vhost = vhosts.dig('80', :body_sha) == vhosts.dig('443', :body_sha)
+          end
+
+          data[:vhosts][hostname].delete('80') if remove_vhost
         end
       end
     end
@@ -75,7 +87,8 @@ class Scan
         title: result['title'],
         status_code: result['status_code'],
         location: result['location'] || '',
-        technologies: result['tech'] || []
+        technologies: result['tech'] || [],
+        body_sha: result.dig('hash', 'body_sha256')
       }
     end
 
