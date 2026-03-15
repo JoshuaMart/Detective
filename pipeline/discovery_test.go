@@ -46,7 +46,7 @@ func TestDiscover_Normal_ReturnsDeduplicatedHostnames(t *testing.T) {
 func TestRunBruteforce_DownloadsAndGenerates(t *testing.T) {
 	// Serve a fake wordlist
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("www\napi\ndev\nstaging\n"))
+		_, _ = w.Write([]byte("www\napi\ndev\nstaging\n"))
 	}))
 	defer srv.Close()
 
@@ -125,7 +125,7 @@ func TestRunPermutations_EmptyInput(t *testing.T) {
 func TestDownloadWordlist_Success(t *testing.T) {
 	content := "word1\nword2\nword3\n"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(content))
+		_, _ = w.Write([]byte(content))
 	}))
 	defer srv.Close()
 

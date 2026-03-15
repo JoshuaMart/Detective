@@ -88,7 +88,7 @@ func (c *Client) PushHost(ctx context.Context, payload ReconPayload) error {
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status %d from ingest endpoint", resp.StatusCode)
@@ -116,7 +116,7 @@ func (c *Client) UpdateJobStatus(ctx context.Context, jobID, status string) erro
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status %d updating job status", resp.StatusCode)

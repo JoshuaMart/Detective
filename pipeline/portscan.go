@@ -92,7 +92,7 @@ func scanIP(ctx context.Context, ip string, ports []int, workers int, timeout ti
 				addr := net.JoinHostPort(ip, strconv.Itoa(port))
 				conn, err := net.DialTimeout("tcp", addr, timeout)
 				if err == nil {
-					conn.Close()
+					_ = conn.Close()
 					results <- port
 					slog.Debug("open port found", "ip", ip, "port", port)
 				}

@@ -116,7 +116,7 @@ func runBruteforce(ctx context.Context, cfg *config.Config, domain string) ([]st
 	if err != nil {
 		return nil, fmt.Errorf("download wordlist: %w", err)
 	}
-	defer os.Remove(wordlistPath)
+	defer func() { _ = os.Remove(wordlistPath) }()
 
 	data, err := os.ReadFile(wordlistPath)
 	if err != nil {
@@ -173,7 +173,7 @@ func downloadWordlist(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("fetch: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("unexpected status %d", resp.StatusCode)
@@ -183,10 +183,10 @@ func downloadWordlist(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("create temp file: %w", err)
 	}
-	defer tmpFile.Close()
+	defer func() { _ = tmpFile.Close() }()
 
 	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
-		os.Remove(tmpFile.Name())
+		_ = os.Remove(tmpFile.Name())
 		return "", fmt.Errorf("write temp file: %w", err)
 	}
 
