@@ -1,4 +1,12 @@
-# Detective
+![Image](https://github.com/user-attachments/assets/17e7c4cc-2c02-42ef-b871-5d9ec06eef7a
+
+`Go` `Docker` `Scaleway Serverless`
+
+<p align="center">
+    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/docker-257bd6?style=for-the-badge&logo=docker&logoColor=white"></a>
+    <img src="https://img.shields.io/badge/Docker-Supported-blue.svg">
+    <img src="https://img.shields.io/badge/Golang-1.26-blue.svg">
+</p>
 
 Automated reconnaissance pipeline that discovers subdomains, resolves DNS, detects CDNs, scans ports, and identifies web services — then pushes everything to your API in real time.
 
@@ -28,16 +36,18 @@ Runs as a [Scaleway Serverless Job](https://www.scaleway.com/en/serverless-jobs/
 ## Quick start
 
 ```bash
-# Build
-docker build -t detective .
-
-# Run
 docker run --rm \
   -e WILDCARD="*.example.com" \
   -e JOB_ID="550e8400-e29b-41d4-a716-446655440000" \
   -e API_URL="http://host.docker.internal:8080" \
   -e INGEST_API_KEY="secret" \
-  detective
+  ghcr.io/joshuamart/detective:latest
+```
+
+Or build from source:
+
+```bash
+docker build -t detective .
 ```
 
 ## Modes
@@ -104,7 +114,8 @@ scw jobs definition create \
   memory-limit=2048 \
   image-uri=ghcr.io/joshuamart/detective:latest \
   environment-variables.API_URL="https://api.example.com" \
-  environment-variables.INGEST_API_KEY="secret"
+  environment-variables.INGEST_API_KEY="secret" \
+  environment-variables.SUBFINDER_CONFIG="/config/provider-config.yaml"
 
 # Start a run (per scan)
 scw jobs definition start <definition-id> \
