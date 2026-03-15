@@ -102,7 +102,7 @@ scw jobs definition create \
   name=detective \
   cpu-limit=2000 \
   memory-limit=2048 \
-  image-uri=<image-uri> \
+  image-uri=ghcr.io/joshuamart/detective:latest \
   environment-variables.API_URL="https://api.example.com" \
   environment-variables.INGEST_API_KEY="secret"
 
