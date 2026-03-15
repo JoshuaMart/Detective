@@ -1,6 +1,8 @@
-# Recon Job
+# Detective
 
-Stateless Go binary packaged as a Docker container, executed as a Scaleway Serverless Job. Takes a wildcard as input, runs the full discovery pipeline, and pushes results to the API in real time.
+Automated reconnaissance pipeline that discovers subdomains, resolves DNS, detects CDNs, scans ports, and identifies web services — then pushes everything to your API in real time.
+
+Runs as a [Scaleway Serverless Job](https://www.scaleway.com/en/serverless-jobs/) or locally. One container, one wildcard, full discovery.
 
 ## Pipeline
 
@@ -23,7 +25,31 @@ Stateless Go binary packaged as a Docker container, executed as a Scaleway Serve
 6. Push to API (/api/ingest/recon) — per hostname as completed
 ```
 
-## Environment variables
+## Quick start
+
+```bash
+# Build
+docker build -t detective .
+
+# Run
+docker run --rm \
+  -e WILDCARD="*.example.com" \
+  -e JOB_ID="550e8400-e29b-41d4-a716-446655440000" \
+  -e API_URL="http://host.docker.internal:8080" \
+  -e INGEST_API_KEY="secret" \
+  detective
+```
+
+## Modes
+
+**Normal** (default) — passive subdomain enumeration via subfinder, top 1000 TCP ports.
+
+**Intensive** — subfinder + wordlist bruteforce + alterx permutations, full port range (1-65535).
+
+Set `MODE=intensive` and provide `WORDLIST_URL` to enable.
+
+<details>
+<summary>Environment variables</summary>
 
 | Variable | Required | Description |
 |---|---|---|
@@ -38,17 +64,13 @@ Stateless Go binary packaged as a Docker container, executed as a Scaleway Serve
 | `DNS_WORKERS` | no | Concurrent DNS resolution workers (default: `5`) |
 | `LOG_LEVEL` | no | `debug` for verbose output (default: `info`) |
 
-## Modes
-
-**Normal** — passive subdomain enumeration (subfinder), top 1000 ports.
-
-**Intensive** — subfinder + wordlist bruteforce + alterx permutations, full port range (1-65535).
+</details>
 
 ## Subfinder API keys
 
-To improve subdomain discovery, you can provide API keys for subfinder's sources (SecurityTrails, Shodan, Censys, etc.).
+Provide API keys for subfinder sources (SecurityTrails, Shodan, Censys, etc.) to improve subdomain discovery.
 
-Create a `provider-config.yaml` file:
+Create a `provider-config.yaml`:
 
 ```yaml
 securitytrails:
@@ -59,60 +81,32 @@ censys:
   - your-id:your-secret
 ```
 
-For the full list of supported providers, see the [subfinder documentation](https://github.com/projectdiscovery/subfinder#post-installation-instructions).
+See the [subfinder documentation](https://docs.projectdiscovery.io/opensource/subfinder/install#post-install-configuration) for the full list of supported providers.
 
-Pass the file via `SUBFINDER_CONFIG` pointing to its path inside the container.
-
-**Local dev** — mount the file:
+**Local** — mount the file:
 
 ```bash
-docker run --rm \
-  --env-file .env \
+docker run --rm --env-file .env \
   -v /path/to/provider-config.yaml:/config/provider-config.yaml \
   -e SUBFINDER_CONFIG=/config/provider-config.yaml \
-  recon
+  detective
 ```
 
-**Scaleway** — store the file in [Secret Manager](https://www.scaleway.com/en/docs/serverless-jobs/how-to/reference-secret-in-job/) and inject it as a file in the Job Definition at `/config/provider-config.yaml`, then set `SUBFINDER_CONFIG=/config/provider-config.yaml`.
-
-## Build
-
-```bash
-docker build -t recon .
-```
-
-## Run locally
-
-```bash
-docker run --rm \
-  -e WILDCARD="*.example.com" \
-  -e JOB_ID="550e8400-e29b-41d4-a716-446655440000" \
-  -e MODE="normal" \
-  -e API_URL="http://host.docker.internal:8080" \
-  -e INGEST_API_KEY="secret" \
-  recon
-```
+**Scaleway** — store the file in [Secret Manager](https://www.scaleway.com/en/docs/serverless-jobs/how-to/reference-secret-in-job/) and inject it at `/config/provider-config.yaml`, then set `SUBFINDER_CONFIG=/config/provider-config.yaml`.
 
 ## Deploy to Scaleway
 
-Push the image to Scaleway Container Registry, create a Job Definition once, then start runs with different parameters.
-
 ```bash
-# 1. Push image to Scaleway Container Registry
-docker login rg.fr-par.scw.cloud/recon -u nologin --password-stdin <<< "$SCW_SECRET_KEY"
-docker tag recon:latest rg.fr-par.scw.cloud/recon/recon:latest
-docker push rg.fr-par.scw.cloud/recon/recon:latest
-
-# 2. Create the Job Definition (once)
+# Create the Job Definition (once)
 scw jobs definition create \
-  name=recon \
+  name=detective \
   cpu-limit=2000 \
   memory-limit=2048 \
-  image-uri=rg.fr-par.scw.cloud/recon/recon:latest \
+  image-uri=<image-uri> \
   environment-variables.API_URL="https://api.example.com" \
   environment-variables.INGEST_API_KEY="secret"
 
-# 3. Start a run (per scan)
+# Start a run (per scan)
 scw jobs definition start <definition-id> \
   environment-variables.WILDCARD="*.example.com" \
   environment-variables.JOB_ID="uuid-here" \
@@ -121,7 +115,7 @@ scw jobs definition start <definition-id> \
 
 Shared variables (`API_URL`, `INGEST_API_KEY`) go in the definition. Per-scan variables (`WILDCARD`, `JOB_ID`, `MODE`) are passed at run time.
 
-## API payload examples
+## API output
 
 Each hostname is pushed individually to `POST /api/ingest/recon`.
 
@@ -176,43 +170,16 @@ Each hostname is pushed individually to `POST /api/ingest/recon`.
 
 </details>
 
-## Run tests
-
-```bash
-# Unit tests only (fast)
-go test -short ./...
-
-# All tests including integration
-go test ./...
-```
-
-## Project structure
-
-```
-recon/
-├── main.go              # Entrypoint, config loading, timeout, job status
-├── config/
-│   ├── config.go        # Env var loading + validation
-│   └── config_test.go
-├── pipeline/
-│   ├── pipeline.go      # Orchestrates steps 1→6, graceful timeout handling
-│   ├── discovery.go     # Step 1 — subfinder, bruteforce, alterx
-│   ├── dns.go           # Step 2 — dnsx resolution + tlsx SAN extraction
-│   ├── cdn.go           # Step 3 — cdncheck CDN/WAF detection
-│   ├── portscan.go      # Step 4 — TCP connect scan
-│   ├── ports.go         # Nmap top 1000 TCP ports list
-│   ├── webdetect.go     # Step 5 — httpx web service detection
-│   └── *_test.go
-├── push/
-│   └── api.go           # HTTP client for API ingest + job status
-├── Dockerfile
-├── go.mod
-└── go.sum
-```
-
 ## Timeout behavior
 
 On timeout, the pipeline pushes whatever was collected so far (partial results) using a fresh 2-minute context, then exits cleanly. The job is marked as `completed` — partial data is better than no data.
+
+## Testing
+
+```bash
+go test -short ./...   # Unit tests only
+go test ./...          # All tests including integration
+```
 
 ## DNS resolvers
 
