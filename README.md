@@ -1,9 +1,7 @@
-![Image](https://github.com/user-attachments/assets/17e7c4cc-2c02-42ef-b871-5d9ec06eef7a
-
-`Go` `Docker` `Scaleway Serverless`
+![Image](https://github.com/user-attachments/assets/17e7c4cc-2c02-42ef-b871-5d9ec06eef7a)
 
 <p align="center">
-    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/docker-257bd6?style=for-the-badge&logo=docker&logoColor=white"></a>
+    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg"></a>
     <img src="https://img.shields.io/badge/Docker-Supported-blue.svg">
     <img src="https://img.shields.io/badge/Golang-1.26-blue.svg">
 </p>
