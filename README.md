@@ -1,9 +1,9 @@
 ![Image](https://github.com/user-attachments/assets/17e7c4cc-2c02-42ef-b871-5d9ec06eef7a)
 
 <p align="center">
-    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg"></a>
-    <img src="https://img.shields.io/badge/Docker-Supported-blue.svg">
-    <img src="https://img.shields.io/badge/Golang-1.26-blue.svg">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green"></a>
+  <img src="https://img.shields.io/badge/docker-supported-blue?logo=docker">
+  <img src="https://img.shields.io/badge/golang-1.26-blue?logo=go">
 </p>
 
 Automated reconnaissance pipeline that discovers subdomains, resolves DNS, detects CDNs, scans ports, and identifies web services — then pushes everything to your API in real time.
