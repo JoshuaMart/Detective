@@ -26,6 +26,7 @@ func main() {
 	defer cancel()
 
 	client := push.NewClient(cfg.APIURL, cfg.IngestAPIKey)
+	updateJobStatus(client, cfg.JobID, "running")
 
 	if err := pipeline.Run(ctx, cfg, client); err != nil {
 		slog.Error("pipeline failed", "error", err)
