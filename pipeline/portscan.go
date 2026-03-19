@@ -18,14 +18,21 @@ type ScannedHost struct {
 	OpenPorts []int
 }
 
+// portJob represents a single (ip, port) probe to execute.
+type portJob struct {
+	ip   string
+	port int
+}
+
 // ScanPorts runs a TCP connect scan on non-CDN hosts, grouped by unique IP.
+// A single global worker pool processes all (ip, port) pairs concurrently.
 // Returns hosts enriched with open port data.
 func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([]ScannedHost, error) {
 	if len(hosts) == 0 {
 		return nil, nil
 	}
 
-	// Build unique IP list and mapping
+	// Build unique IP set and mapping
 	ipToHosts := make(map[string][]ResolvedHost)
 	var uniqueIPs []string
 	for _, h := range hosts {
@@ -34,7 +41,6 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 		}
 		ipToHosts[h.IP] = append(ipToHosts[h.IP], h)
 	}
-	slog.Info("scanning ports", "unique_ips", len(uniqueIPs), "total_hosts", len(hosts))
 
 	// Determine ports to scan
 	var ports []int
@@ -46,24 +52,63 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 		ports = parseNmapTop1000()
 	}
 
-	slog.Debug("starting port scan", "port_count", len(ports), "workers", 200)
+	workers := cfg.PortScanWorkers
+	totalJobs := len(uniqueIPs) * len(ports)
+	slog.Info("scanning ports", "unique_ips", len(uniqueIPs), "total_hosts", len(hosts), "port_count", len(ports), "workers", workers)
 
-	// Scan each unique IP
-	var mu sync.Mutex
-	ipPorts := make(map[string][]int)
+	jobs := make(chan portJob, workers)
+	results := make(chan portJob, workers)
 
-	for _, ip := range uniqueIPs {
-		if ctx.Err() != nil {
-			break
-		}
-		open := scanIP(ctx, ip, ports, 200, 2*time.Second)
-		mu.Lock()
-		ipPorts[ip] = open
-		mu.Unlock()
-		slog.Debug("scan complete for IP", "ip", ip, "open_ports", len(open))
+	// Start global worker pool
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				if ctx.Err() != nil {
+					continue
+				}
+				addr := net.JoinHostPort(j.ip, strconv.Itoa(j.port))
+				conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+				if err == nil {
+					_ = conn.Close()
+					results <- j
+				}
+			}
+		}()
 	}
 
-	// Map open ports back to hostnames
+	// Feed all (ip, port) pairs
+	go func() {
+		for _, ip := range uniqueIPs {
+			for _, port := range ports {
+				jobs <- portJob{ip: ip, port: port}
+			}
+		}
+		close(jobs)
+	}()
+
+	// Close results when all workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results grouped by IP
+	ipPorts := make(map[string][]int, len(uniqueIPs))
+	collected := 0
+	for r := range results {
+		ipPorts[r.ip] = append(ipPorts[r.ip], r.port)
+		collected++
+	}
+	slog.Info("port scan complete", "total_probes", totalJobs, "open_ports_found", collected)
+
+	// Sort open ports per IP and map back to hostnames
+	for ip := range ipPorts {
+		sort.Ints(ipPorts[ip])
+	}
+
 	var scanned []ScannedHost
 	for _, h := range hosts {
 		scanned = append(scanned, ScannedHost{
@@ -73,48 +118,5 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 	}
 
 	return scanned, nil
-}
-
-// scanIP probes all ports on a single IP using a worker pool.
-func scanIP(ctx context.Context, ip string, ports []int, workers int, timeout time.Duration) []int {
-	jobs := make(chan int, len(ports))
-	results := make(chan int, len(ports))
-
-	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for port := range jobs {
-				if ctx.Err() != nil {
-					continue
-				}
-				addr := net.JoinHostPort(ip, strconv.Itoa(port))
-				conn, err := net.DialTimeout("tcp", addr, timeout)
-				if err == nil {
-					_ = conn.Close()
-					results <- port
-					slog.Debug("open port found", "ip", ip, "port", port)
-				}
-			}
-		}()
-	}
-
-	for _, p := range ports {
-		jobs <- p
-	}
-	close(jobs)
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	var open []int
-	for port := range results {
-		open = append(open, port)
-	}
-	sort.Ints(open)
-	return open
 }
 

@@ -25,6 +25,7 @@ type Config struct {
 	JobTimeout      time.Duration
 	DNSWorkers      int
 	TLSWorkers      int
+	PortScanWorkers int
 	SubfinderConfig string
 }
 
@@ -85,6 +86,17 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("invalid TLS_WORKERS %q: must be a positive integer", tlsWorkers)
 		}
 		cfg.TLSWorkers = n
+	}
+
+	portScanWorkers := os.Getenv("PORT_SCAN_WORKERS")
+	if portScanWorkers == "" {
+		cfg.PortScanWorkers = 500
+	} else {
+		n, err := strconv.Atoi(portScanWorkers)
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("invalid PORT_SCAN_WORKERS %q: must be a positive integer", portScanWorkers)
+		}
+		cfg.PortScanWorkers = n
 	}
 
 	if err := cfg.validate(); err != nil {
