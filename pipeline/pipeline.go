@@ -3,14 +3,15 @@ package pipeline
 import (
 	"context"
 	"log/slog"
-	"time"
 
 	"github.com/jomar/recon/config"
 	"github.com/jomar/recon/push"
 )
 
-// drainTimeout is the time allowed for pushing partial results after a pipeline timeout.
-const drainTimeout = 2 * time.Minute
+// pushCtx is a background context used for all push operations.
+// Pushes are decoupled from the pipeline timeout — each HTTP request
+// is already bounded by the client's own 30s timeout.
+var pushCtx = context.Background()
 
 // Run executes the full recon pipeline for the configured wildcard.
 // On context timeout, it pushes whatever was collected so far and returns nil
@@ -37,9 +38,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	if err != nil {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during DNS resolution, pushing unresolved hostnames")
-			drainCtx, drainCancel := context.WithTimeout(context.Background(), drainTimeout)
-			defer drainCancel()
-			pushUnresolved(drainCtx, client, cfg, hostnames)
+			pushUnresolved(client, cfg, hostnames)
 			return nil
 		}
 		return err
@@ -47,7 +46,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	slog.Info("DNS resolution complete", "resolved", len(resolved), "unresolved", len(unresolved))
 
 	// Push unresolved hostnames immediately
-	pushUnresolved(ctx, client, cfg, unresolved)
+	pushUnresolved(client, cfg, unresolved)
 
 	// Step 3 — IP deduplication & CDN detection
 	slog.Info("step 3: CDN detection")
@@ -55,9 +54,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	if err != nil {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during CDN detection, pushing resolved hosts as-is")
-			drainCtx, drainCancel := context.WithTimeout(context.Background(), drainTimeout)
-			defer drainCancel()
-			pushResolvedAsIs(drainCtx, client, cfg, resolved)
+			pushResolvedAsIs(client, cfg, resolved)
 			return nil
 		}
 		return err
@@ -68,9 +65,9 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	for _, h := range cdnHosts {
 		payload := push.ReconPayload{
 			JobID: cfg.JobID,
-			Host:       h,
+			Host:  h,
 		}
-		if err := client.PushHost(ctx, payload); err != nil {
+		if err := client.PushHost(pushCtx, payload); err != nil {
 			slog.Error("failed to push CDN host", "fqdn", h.FQDN, "error", err)
 		}
 	}
@@ -81,9 +78,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	if err != nil {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during port scan, pushing non-CDN hosts without ports")
-			drainCtx, drainCancel := context.WithTimeout(context.Background(), drainTimeout)
-			defer drainCancel()
-			pushResolvedAsIs(drainCtx, client, cfg, nonCDNHosts)
+			pushResolvedAsIs(client, cfg, nonCDNHosts)
 			return nil
 		}
 		return err
@@ -96,9 +91,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	if err != nil {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during web detection, pushing hosts with ports only")
-			drainCtx, drainCancel := context.WithTimeout(context.Background(), drainTimeout)
-			defer drainCancel()
-			pushScannedAsIs(drainCtx, client, cfg, scanned)
+			pushScannedAsIs(client, cfg, scanned)
 			return nil
 		}
 		return err
@@ -110,9 +103,9 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	for _, h := range enriched {
 		payload := push.ReconPayload{
 			JobID: cfg.JobID,
-			Host:       h,
+			Host:  h,
 		}
-		if err := client.PushHost(ctx, payload); err != nil {
+		if err := client.PushHost(pushCtx, payload); err != nil {
 			slog.Error("failed to push host", "fqdn", h.FQDN, "error", err)
 		}
 	}
@@ -122,20 +115,20 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 }
 
 // pushUnresolved pushes a list of FQDNs as unresolved hostnames.
-func pushUnresolved(ctx context.Context, client *push.Client, cfg *config.Config, fqdns []string) {
+func pushUnresolved(client *push.Client, cfg *config.Config, fqdns []string) {
 	for _, fqdn := range fqdns {
 		payload := push.ReconPayload{
 			JobID: cfg.JobID,
-			Host:       push.Host{FQDN: fqdn},
+			Host:  push.Host{FQDN: fqdn},
 		}
-		if err := client.PushHost(ctx, payload); err != nil {
+		if err := client.PushHost(pushCtx, payload); err != nil {
 			slog.Error("failed to push unresolved host", "fqdn", fqdn, "error", err)
 		}
 	}
 }
 
 // pushResolvedAsIs pushes resolved hosts with DNS data but without port/web enrichment.
-func pushResolvedAsIs(ctx context.Context, client *push.Client, cfg *config.Config, hosts []ResolvedHost) {
+func pushResolvedAsIs(client *push.Client, cfg *config.Config, hosts []ResolvedHost) {
 	for _, h := range hosts {
 		ip := h.IP
 		payload := push.ReconPayload{
@@ -146,14 +139,14 @@ func pushResolvedAsIs(ctx context.Context, client *push.Client, cfg *config.Conf
 				DNS:  &h.DNS,
 			},
 		}
-		if err := client.PushHost(ctx, payload); err != nil {
+		if err := client.PushHost(pushCtx, payload); err != nil {
 			slog.Error("failed to push resolved host", "fqdn", h.FQDN, "error", err)
 		}
 	}
 }
 
 // pushScannedAsIs pushes scanned hosts with port data but without web detection.
-func pushScannedAsIs(ctx context.Context, client *push.Client, cfg *config.Config, hosts []ScannedHost) {
+func pushScannedAsIs(client *push.Client, cfg *config.Config, hosts []ScannedHost) {
 	for _, h := range hosts {
 		host := buildHostsWithoutWeb([]ScannedHost{h})
 		if len(host) == 0 {
@@ -161,9 +154,9 @@ func pushScannedAsIs(ctx context.Context, client *push.Client, cfg *config.Confi
 		}
 		payload := push.ReconPayload{
 			JobID: cfg.JobID,
-			Host:       host[0],
+			Host:  host[0],
 		}
-		if err := client.PushHost(ctx, payload); err != nil {
+		if err := client.PushHost(pushCtx, payload); err != nil {
 			slog.Error("failed to push scanned host", "fqdn", h.FQDN, "error", err)
 		}
 	}
