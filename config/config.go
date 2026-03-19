@@ -24,6 +24,7 @@ type Config struct {
 	WordlistURL     string
 	JobTimeout      time.Duration
 	DNSWorkers      int
+	TLSWorkers      int
 	SubfinderConfig string
 }
 
@@ -73,6 +74,17 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("invalid DNS_WORKERS %q: must be a positive integer", dnsWorkers)
 		}
 		cfg.DNSWorkers = n
+	}
+
+	tlsWorkers := os.Getenv("TLS_WORKERS")
+	if tlsWorkers == "" {
+		cfg.TLSWorkers = 50
+	} else {
+		n, err := strconv.Atoi(tlsWorkers)
+		if err != nil || n < 1 {
+			return nil, fmt.Errorf("invalid TLS_WORKERS %q: must be a positive integer", tlsWorkers)
+		}
+		cfg.TLSWorkers = n
 	}
 
 	if err := cfg.validate(); err != nil {

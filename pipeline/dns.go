@@ -177,6 +177,10 @@ func resolveOne(client *dnsx.DNSX, fqdn string) dnsResult {
 // extractSANs connects to each resolved host on port 443 and extracts SANs
 // that match the wildcard pattern. Returns new FQDNs not already known.
 func extractSANs(ctx context.Context, cfg *config.Config, resolved []ResolvedHost) []string {
+	if len(resolved) == 0 {
+		return nil
+	}
+
 	slog.Debug("initializing tlsx service", "scan_mode", "auto")
 	tlsService, err := tlsx.New(&clients.Options{
 		ScanMode: "auto",
@@ -188,47 +192,74 @@ func extractSANs(ctx context.Context, cfg *config.Config, resolved []ResolvedHos
 		return nil
 	}
 
+	workers := cfg.TLSWorkers
+	wildcardPattern := cfg.BaseDomain()
+
 	known := make(map[string]struct{}, len(resolved))
 	for _, h := range resolved {
 		known[h.FQDN] = struct{}{}
 	}
 
-	wildcardPattern := cfg.BaseDomain()
-	var newHosts []string
+	slog.Debug("starting SAN extraction pool", "hosts", len(resolved), "workers", workers)
 
+	jobs := make(chan ResolvedHost, len(resolved))
+	results := make(chan []string, len(resolved))
+
+	// Start workers
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for host := range jobs {
+				if ctx.Err() != nil {
+					continue
+				}
+				resp, err := tlsService.Connect(host.FQDN, host.IP, "443")
+				if err != nil {
+					slog.Debug("tlsx connect failed", "fqdn", host.FQDN, "error", err)
+					continue
+				}
+				if resp.CertificateResponse == nil {
+					continue
+				}
+				var sans []string
+				for _, san := range resp.SubjectAN {
+					san = strings.ToLower(san)
+					san = strings.TrimPrefix(san, "*.")
+					if matchesWildcard(san, wildcardPattern) {
+						sans = append(sans, san)
+					}
+				}
+				if len(sans) > 0 {
+					results <- sans
+				}
+			}
+		}()
+	}
+
+	// Feed jobs
 	for _, host := range resolved {
-		if ctx.Err() != nil {
-			slog.Warn("context cancelled during SAN extraction")
-			break
-		}
+		jobs <- host
+	}
+	close(jobs)
 
-		resp, err := tlsService.Connect(host.FQDN, host.IP, "443")
-		if err != nil {
-			slog.Debug("tlsx connect failed", "fqdn", host.FQDN, "error", err)
-			continue
-		}
+	// Close results when all workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
 
-		if resp.CertificateResponse == nil {
-			continue
-		}
-
-		for _, san := range resp.SubjectAN {
-			san = strings.ToLower(san)
-
-			// Strip wildcard prefix from SAN entries like *.sub.example.com
-			san = strings.TrimPrefix(san, "*.")
-
+	// Collect and deduplicate
+	var newHosts []string
+	for sans := range results {
+		for _, san := range sans {
 			if _, exists := known[san]; exists {
 				continue
 			}
-
-			if !matchesWildcard(san, wildcardPattern) {
-				continue
-			}
-
 			known[san] = struct{}{}
 			newHosts = append(newHosts, san)
-			slog.Debug("new SAN discovered", "san", san, "source", host.FQDN)
+			slog.Debug("new SAN discovered", "san", san)
 		}
 	}
 
