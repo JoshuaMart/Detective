@@ -23,8 +23,8 @@ t.Setenv("MODE", "normal")
 	if cfg.Mode != ModeNormal {
 		t.Errorf("mode = %q, want %q", cfg.Mode, ModeNormal)
 	}
-	if cfg.JobTimeout != 2*time.Hour {
-		t.Errorf("timeout = %v, want %v", cfg.JobTimeout, 2*time.Hour)
+	if cfg.JobTimeout != 4*time.Hour {
+		t.Errorf("timeout = %v, want %v", cfg.JobTimeout, 4*time.Hour)
 	}
 }
 
@@ -58,8 +58,8 @@ t.Setenv("MODE", "intensive")
 	if cfg.Mode != ModeIntensive {
 		t.Errorf("mode = %q, want %q", cfg.Mode, ModeIntensive)
 	}
-	if cfg.JobTimeout != 6*time.Hour {
-		t.Errorf("timeout = %v, want %v", cfg.JobTimeout, 6*time.Hour)
+	if cfg.JobTimeout != 8*time.Hour {
+		t.Errorf("timeout = %v, want %v", cfg.JobTimeout, 8*time.Hour)
 	}
 }
 
