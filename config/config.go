@@ -52,9 +52,9 @@ func Load() (*Config, error) {
 	timeout := os.Getenv("JOB_TIMEOUT")
 	if timeout == "" {
 		if cfg.Mode == ModeIntensive {
-			cfg.JobTimeout = 6 * time.Hour
+			cfg.JobTimeout = 8 * time.Hour
 		} else {
-			cfg.JobTimeout = 2 * time.Hour
+			cfg.JobTimeout = 4 * time.Hour
 		}
 	} else {
 		d, err := time.ParseDuration(timeout)
@@ -66,7 +66,7 @@ func Load() (*Config, error) {
 
 	dnsWorkers := os.Getenv("DNS_WORKERS")
 	if dnsWorkers == "" {
-		cfg.DNSWorkers = 5
+		cfg.DNSWorkers = 20
 	} else {
 		n, err := strconv.Atoi(dnsWorkers)
 		if err != nil || n < 1 {

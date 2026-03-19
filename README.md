@@ -68,8 +68,8 @@ Set `MODE=intensive` and provide `WORDLIST_URL` to enable.
 | `INGEST_API_KEY` | yes | Secret for the ingest endpoint |
 | `WORDLIST_URL` | intensive | URL to fetch bruteforce wordlist |
 | `SUBFINDER_CONFIG` | no | Path to subfinder provider-config.yaml (API keys) |
-| `JOB_TIMEOUT` | no | Job timeout duration (default: `2h`, intensive: `6h`) |
-| `DNS_WORKERS` | no | Concurrent DNS resolution workers (default: `5`) |
+| `JOB_TIMEOUT` | no | Job timeout duration (default: `4h`, intensive: `8h`) |
+| `DNS_WORKERS` | no | Concurrent DNS resolution workers (default: `20`) |
 | `LOG_LEVEL` | no | `debug` for verbose output (default: `info`) |
 
 </details>
