@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"time"
@@ -29,6 +30,11 @@ func main() {
 	updateJobStatus(client, cfg.JobID, "running")
 
 	if err := pipeline.Run(ctx, cfg, client); err != nil {
+		if errors.Is(err, pipeline.ErrTimeout) {
+			slog.Warn("pipeline timed out, partial results pushed")
+			updateJobStatus(client, cfg.JobID, "timeout")
+			return
+		}
 		slog.Error("pipeline failed", "error", err)
 		updateJobStatus(client, cfg.JobID, "failed")
 		os.Exit(1)

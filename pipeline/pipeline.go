@@ -2,11 +2,16 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/jomar/recon/config"
 	"github.com/jomar/recon/push"
 )
+
+// ErrTimeout is returned when the pipeline completes partially due to a context timeout.
+// Partial results are pushed before returning this error.
+var ErrTimeout = errors.New("pipeline timed out, partial results pushed")
 
 // pushCtx is a background context used for all push operations.
 // Pushes are decoupled from the pipeline timeout — each HTTP request
@@ -26,7 +31,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	if err != nil {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during subdomain discovery, no results to push")
-			return nil
+			return ErrTimeout
 		}
 		return err
 	}
@@ -39,7 +44,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during DNS resolution, pushing unresolved hostnames")
 			pushUnresolved(client, cfg, hostnames)
-			return nil
+			return ErrTimeout
 		}
 		return err
 	}
@@ -55,7 +60,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during CDN detection, pushing resolved hosts as-is")
 			pushResolvedAsIs(client, cfg, resolved)
-			return nil
+			return ErrTimeout
 		}
 		return err
 	}
@@ -79,7 +84,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during port scan, pushing non-CDN hosts without ports")
 			pushResolvedAsIs(client, cfg, nonCDNHosts)
-			return nil
+			return ErrTimeout
 		}
 		return err
 	}
@@ -92,7 +97,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during web detection, pushing hosts with ports only")
 			pushScannedAsIs(client, cfg, scanned)
-			return nil
+			return ErrTimeout
 		}
 		return err
 	}
