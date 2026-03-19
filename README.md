@@ -19,10 +19,10 @@ Runs as a [Scaleway Serverless Job](https://www.scaleway.com/en/serverless-jobs/
 2. DNS resolution (dnsx) + SAN extraction (tlsx) → new hostnames → back to step 2
         │
         ▼
-3. IP deduplication + CDN/WAF detection (cdncheck) → CDN hosts pushed immediately
+3. IP deduplication + CDN/WAF detection (cdncheck)
         │
         ▼
-4. Port scan (TCP connect) — per unique non-CDN IP
+4. Port scan (TCP connect) — top 1000 per unique IP, 80/443 only for CDN IPs
         │
         ▼
 5. Web detection (httpx) — HTTP + HTTPS on every open port

@@ -55,7 +55,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 
 	// Step 3 — IP deduplication & CDN detection
 	slog.Info("step 3: CDN detection")
-	cdnHosts, nonCDNHosts, err := DetectCDN(ctx, resolved)
+	cdnEnriched, err := DetectCDN(ctx, resolved)
 	if err != nil {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during CDN detection, pushing resolved hosts as-is")
@@ -64,26 +64,14 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 		}
 		return err
 	}
-	slog.Info("CDN detection complete", "cdn", len(cdnHosts), "non_cdn", len(nonCDNHosts))
 
-	// Push CDN hostnames immediately
-	for _, h := range cdnHosts {
-		payload := push.ReconPayload{
-			JobID: cfg.JobID,
-			Host:  h,
-		}
-		if err := client.PushHost(pushCtx, payload); err != nil {
-			slog.Error("failed to push CDN host", "fqdn", h.FQDN, "error", err)
-		}
-	}
-
-	// Step 4 — Port scan
+	// Step 4 — Port scan (all hosts, including CDN)
 	slog.Info("step 4: port scan")
-	scanned, err := ScanPorts(ctx, cfg, nonCDNHosts)
+	scanned, err := ScanPorts(ctx, cfg, cdnEnriched)
 	if err != nil {
 		if ctx.Err() != nil {
-			slog.Warn("timeout during port scan, pushing non-CDN hosts without ports")
-			pushResolvedAsIs(client, cfg, nonCDNHosts)
+			slog.Warn("timeout during port scan, pushing hosts without ports")
+			pushResolvedAsIs(client, cfg, cdnEnriched)
 			return ErrTimeout
 		}
 		return err
@@ -92,7 +80,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 
 	// Step 5 — Web detection
 	slog.Info("step 5: web detection")
-	enriched, err := DetectWeb(scanned)
+	webEnriched, err := DetectWeb(scanned)
 	if err != nil {
 		if ctx.Err() != nil {
 			slog.Warn("timeout during web detection, pushing hosts with ports only")
@@ -101,11 +89,11 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 		}
 		return err
 	}
-	slog.Info("web detection complete", "hosts", len(enriched))
+	slog.Info("web detection complete", "hosts", len(webEnriched))
 
 	// Step 6 — Push remaining results
 	slog.Info("step 6: pushing results")
-	for _, h := range enriched {
+	for _, h := range webEnriched {
 		payload := push.ReconPayload{
 			JobID: cfg.JobID,
 			Host:  h,
@@ -136,13 +124,18 @@ func pushUnresolved(client *push.Client, cfg *config.Config, fqdns []string) {
 func pushResolvedAsIs(client *push.Client, cfg *config.Config, hosts []ResolvedHost) {
 	for _, h := range hosts {
 		ip := h.IP
+		host := push.Host{
+			FQDN: h.FQDN,
+			IP:   &ip,
+			DNS:  &h.DNS,
+		}
+		if h.CDN != "" {
+			cdn := h.CDN
+			host.CDN = &cdn
+		}
 		payload := push.ReconPayload{
 			JobID: cfg.JobID,
-			Host: push.Host{
-				FQDN: h.FQDN,
-				IP:   &ip,
-				DNS:  &h.DNS,
-			},
+			Host:  host,
 		}
 		if err := client.PushHost(pushCtx, payload); err != nil {
 			slog.Error("failed to push resolved host", "fqdn", h.FQDN, "error", err)

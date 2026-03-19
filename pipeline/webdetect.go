@@ -157,6 +157,10 @@ func buildHosts(hosts []ScannedHost, webURLs map[string]map[string]string) []pus
 				UDP: make(map[string]push.PortInfo),
 			},
 		}
+		if h.CDN != "" {
+			cdn := h.CDN
+			host.CDN = &cdn
+		}
 
 		_ = hasWeb // type determination is done by the API based on ports data
 		result = append(result, host)
@@ -174,6 +178,10 @@ func buildHostsWithoutWeb(hosts []ScannedHost) []push.Host {
 			FQDN: h.FQDN,
 			IP:   &ip,
 			DNS:  &h.DNS,
+		}
+		if h.CDN != "" {
+			cdn := h.CDN
+			host.CDN = &cdn
 		}
 		if len(h.OpenPorts) > 0 {
 			tcp := make(map[string]push.PortInfo)

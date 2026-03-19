@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/jomar/recon/push"
 	"github.com/projectdiscovery/cdncheck"
 )
 
@@ -15,17 +14,16 @@ type cdnResult struct {
 	Provider string
 }
 
-// DetectCDN checks resolved hosts for CDN/WAF IPs.
-// Deduplicates by IP so each unique IP is checked only once.
-// Returns CDN hosts (ready to push) and non-CDN hosts (proceed to port scan).
-func DetectCDN(ctx context.Context, resolved []ResolvedHost) ([]push.Host, []ResolvedHost, error) {
+// DetectCDN checks resolved hosts for CDN/WAF IPs and enriches them with the CDN label.
+// All hosts are returned — CDN hosts proceed to port scanning like non-CDN hosts.
+func DetectCDN(ctx context.Context, resolved []ResolvedHost) ([]ResolvedHost, error) {
 	slog.Debug("initializing cdncheck client")
 	client := cdncheck.New()
 
 	// Group hostnames by IP for deduplication
-	ipToHosts := make(map[string][]ResolvedHost)
-	for _, h := range resolved {
-		ipToHosts[h.IP] = append(ipToHosts[h.IP], h)
+	ipToHosts := make(map[string][]int) // ip → indices into resolved
+	for i, h := range resolved {
+		ipToHosts[h.IP] = append(ipToHosts[h.IP], i)
 	}
 	slog.Info("IP deduplication", "unique_ips", len(ipToHosts), "total_hosts", len(resolved))
 
@@ -60,25 +58,20 @@ func DetectCDN(ctx context.Context, resolved []ResolvedHost) ([]push.Host, []Res
 		ipResults[ip] = cdnResult{}
 	}
 
-	// Map results back to hostnames
-	var cdnHosts []push.Host
-	var nonCDNHosts []ResolvedHost
+	// Enrich hosts with CDN label
+	enriched := make([]ResolvedHost, len(resolved))
+	copy(enriched, resolved)
 
-	for _, h := range resolved {
-		result := ipResults[h.IP]
+	cdnCount := 0
+	for ip, result := range ipResults {
 		if result.IsCDN {
-			cdn := result.Provider
-			ip := h.IP
-			cdnHosts = append(cdnHosts, push.Host{
-				FQDN: h.FQDN,
-				IP:   &ip,
-				CDN:  &cdn,
-				DNS:  &h.DNS,
-			})
-		} else {
-			nonCDNHosts = append(nonCDNHosts, h)
+			for _, idx := range ipToHosts[ip] {
+				enriched[idx].CDN = result.Provider
+			}
+			cdnCount += len(ipToHosts[ip])
 		}
 	}
 
-	return cdnHosts, nonCDNHosts, nil
+	slog.Info("CDN detection complete", "cdn", cdnCount, "non_cdn", len(resolved)-cdnCount)
+	return enriched, nil
 }

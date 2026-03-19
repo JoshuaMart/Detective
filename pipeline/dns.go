@@ -19,6 +19,7 @@ type ResolvedHost struct {
 	FQDN string
 	IP   string
 	DNS  push.DNS
+	CDN  string // empty when not behind a CDN/WAF
 }
 
 // ResolveDNS resolves all hostnames and extracts SANs from TLS certificates.

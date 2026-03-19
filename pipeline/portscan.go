@@ -24,7 +24,8 @@ type portJob struct {
 	port int
 }
 
-// ScanPorts runs a TCP connect scan on non-CDN hosts, grouped by unique IP.
+// ScanPorts runs a TCP connect scan on all hosts, grouped by unique IP.
+// CDN IPs are only probed on ports 80 and 443; others get the full port list.
 // A single global worker pool processes all (ip, port) pairs concurrently.
 // Returns hosts enriched with open port data.
 func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([]ScannedHost, error) {
@@ -42,19 +43,33 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 		ipToHosts[h.IP] = append(ipToHosts[h.IP], h)
 	}
 
-	// Determine ports to scan
-	var ports []int
+	// Determine ports to scan per IP
+	var fullPorts []int
 	if cfg.Mode == config.ModeIntensive {
 		for p := 1; p <= 65535; p++ {
-			ports = append(ports, p)
+			fullPorts = append(fullPorts, p)
 		}
 	} else {
-		ports = parseNmapTop1000()
+		fullPorts = parseNmapTop1000()
+	}
+	cdnPorts := []int{80, 443}
+
+	// Build CDN IP set for port selection
+	cdnIPs := make(map[string]bool, len(uniqueIPs))
+	for _, ip := range uniqueIPs {
+		cdnIPs[ip] = ipToHosts[ip][0].CDN != ""
 	}
 
 	workers := cfg.PortScanWorkers
-	totalJobs := len(uniqueIPs) * len(ports)
-	slog.Info("scanning ports", "unique_ips", len(uniqueIPs), "total_hosts", len(hosts), "port_count", len(ports), "workers", workers)
+	totalJobs := 0
+	for _, ip := range uniqueIPs {
+		if cdnIPs[ip] {
+			totalJobs += len(cdnPorts)
+		} else {
+			totalJobs += len(fullPorts)
+		}
+	}
+	slog.Info("scanning ports", "unique_ips", len(uniqueIPs), "total_hosts", len(hosts), "workers", workers)
 
 	jobs := make(chan portJob, workers)
 	results := make(chan portJob, workers)
@@ -79,9 +94,13 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 		}()
 	}
 
-	// Feed all (ip, port) pairs
+	// Feed (ip, port) pairs — CDN IPs only get 80/443
 	go func() {
 		for _, ip := range uniqueIPs {
+			ports := fullPorts
+			if cdnIPs[ip] {
+				ports = cdnPorts
+			}
 			for _, port := range ports {
 				jobs <- portJob{ip: ip, port: port}
 			}
