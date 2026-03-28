@@ -58,21 +58,8 @@ func ResolveDNS(ctx context.Context, cfg *config.Config, hostnames []string) ([]
 
 	workers := cfg.DNSWorkers
 
-	// First pass: resolve all discovered hostnames
 	resolved, unresolved := resolveHosts(ctx, dnsClient, hostnames, workers)
-	slog.Info("first pass DNS complete", "resolved", len(resolved), "unresolved", len(unresolved))
-
-	// SAN extraction from TLS certificates
-	sanHosts := extractSANs(ctx, cfg, resolved)
-	if len(sanHosts) > 0 {
-		slog.Info("SAN extraction found new hostnames", "count", len(sanHosts))
-
-		// Second pass: resolve SAN-discovered hostnames
-		sanResolved, sanUnresolved := resolveHosts(ctx, dnsClient, sanHosts, workers)
-		resolved = append(resolved, sanResolved...)
-		unresolved = append(unresolved, sanUnresolved...)
-		slog.Info("second pass DNS complete", "new_resolved", len(sanResolved), "new_unresolved", len(sanUnresolved))
-	}
+	slog.Info("DNS resolution complete", "resolved", len(resolved), "unresolved", len(unresolved))
 
 	return resolved, unresolved, nil
 }
@@ -175,10 +162,20 @@ func resolveOne(client *dnsx.DNSX, fqdn string) dnsResult {
 	return dnsResult{host: &host}
 }
 
-// extractSANs connects to each resolved host on port 443 and extracts SANs
+// ExtractSANs connects to scanned hosts that have port 443 open and extracts SANs
 // that match the wildcard pattern. Returns new FQDNs not already known.
-func extractSANs(ctx context.Context, cfg *config.Config, resolved []ResolvedHost) []string {
-	if len(resolved) == 0 {
+func ExtractSANs(ctx context.Context, cfg *config.Config, hosts []ScannedHost) []string {
+	// Filter to hosts with port 443 open
+	var targets []ResolvedHost
+	for _, h := range hosts {
+		for _, p := range h.OpenPorts {
+			if p == 443 {
+				targets = append(targets, h.ResolvedHost)
+				break
+			}
+		}
+	}
+	if len(targets) == 0 {
 		return nil
 	}
 
@@ -196,15 +193,16 @@ func extractSANs(ctx context.Context, cfg *config.Config, resolved []ResolvedHos
 	workers := cfg.TLSWorkers
 	wildcardPattern := cfg.BaseDomain()
 
-	known := make(map[string]struct{}, len(resolved))
-	for _, h := range resolved {
+	// Build known set from ALL hosts (not just targets) to avoid rediscovering existing FQDNs
+	known := make(map[string]struct{}, len(hosts))
+	for _, h := range hosts {
 		known[h.FQDN] = struct{}{}
 	}
 
-	slog.Debug("starting SAN extraction pool", "hosts", len(resolved), "workers", workers)
+	slog.Info("extracting SANs from TLS certificates", "targets", len(targets), "workers", workers)
 
-	jobs := make(chan ResolvedHost, len(resolved))
-	results := make(chan []string, len(resolved))
+	jobs := make(chan ResolvedHost, len(targets))
+	results := make(chan []string, len(targets))
 
 	// Start workers
 	var wg sync.WaitGroup
@@ -240,7 +238,7 @@ func extractSANs(ctx context.Context, cfg *config.Config, resolved []ResolvedHos
 	}
 
 	// Feed jobs
-	for _, host := range resolved {
+	for _, host := range targets {
 		jobs <- host
 	}
 	close(jobs)

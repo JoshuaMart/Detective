@@ -37,7 +37,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	}
 	slog.Info("discovery complete", "count", len(hostnames))
 
-	// Step 2 — DNS resolution + SAN extraction
+	// Step 2 — DNS resolution
 	slog.Info("step 2: DNS resolution")
 	resolved, unresolved, err := ResolveDNS(ctx, cfg, hostnames)
 	if err != nil {
@@ -65,7 +65,7 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 		return err
 	}
 
-	// Step 4 — Port scan (all hosts, including CDN)
+	// Step 4 — Port scan
 	slog.Info("step 4: port scan")
 	scanned, err := ScanPorts(ctx, cfg, cdnEnriched)
 	if err != nil {
@@ -78,8 +78,54 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	}
 	slog.Info("port scan complete", "hosts", len(scanned))
 
-	// Step 5 — Web detection
-	slog.Info("step 5: web detection")
+	// Step 5 — SAN extraction (only from hosts with port 443 open)
+	slog.Info("step 5: SAN extraction")
+	sanHosts := ExtractSANs(ctx, cfg, scanned)
+
+	if len(sanHosts) > 0 {
+		slog.Info("processing SAN-discovered hosts", "count", len(sanHosts))
+
+		sanResolved, sanUnresolved, err := ResolveDNS(ctx, cfg, sanHosts)
+		if err != nil {
+			if ctx.Err() != nil {
+				slog.Warn("timeout during SAN DNS resolution, pushing current results")
+				pushUnresolved(client, cfg, sanUnresolved)
+				pushScannedAsIs(client, cfg, scanned)
+				return ErrTimeout
+			}
+			return err
+		}
+		pushUnresolved(client, cfg, sanUnresolved)
+
+		if len(sanResolved) > 0 {
+			sanCDN, err := DetectCDN(ctx, sanResolved)
+			if err != nil {
+				if ctx.Err() != nil {
+					slog.Warn("timeout during SAN CDN detection, pushing current results")
+					pushResolvedAsIs(client, cfg, sanResolved)
+					pushScannedAsIs(client, cfg, scanned)
+					return ErrTimeout
+				}
+				return err
+			}
+
+			sanScanned, err := ScanPorts(ctx, cfg, sanCDN)
+			if err != nil {
+				if ctx.Err() != nil {
+					slog.Warn("timeout during SAN port scan, pushing current results")
+					pushResolvedAsIs(client, cfg, sanCDN)
+					pushScannedAsIs(client, cfg, scanned)
+					return ErrTimeout
+				}
+				return err
+			}
+
+			scanned = append(scanned, sanScanned...)
+		}
+	}
+
+	// Step 6 — Web detection
+	slog.Info("step 6: web detection")
 	webEnriched, err := DetectWeb(scanned)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -91,8 +137,8 @@ func Run(ctx context.Context, cfg *config.Config, client *push.Client) error {
 	}
 	slog.Info("web detection complete", "hosts", len(webEnriched))
 
-	// Step 6 — Push remaining results
-	slog.Info("step 6: pushing results")
+	// Step 7 — Push remaining results
+	slog.Info("step 7: pushing results")
 	for _, h := range webEnriched {
 		payload := push.ReconPayload{
 			JobID: cfg.JobID,
