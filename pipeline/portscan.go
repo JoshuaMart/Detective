@@ -102,7 +102,12 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 				ports = cdnPorts
 			}
 			for _, port := range ports {
-				jobs <- portJob{ip: ip, port: port}
+				select {
+				case jobs <- portJob{ip: ip, port: port}:
+				case <-ctx.Done():
+					close(jobs)
+					return
+				}
 			}
 		}
 		close(jobs)
