@@ -16,7 +16,7 @@ Runs as a [Scaleway Serverless Job](https://www.scaleway.com/en/serverless-jobs/
 1. Subdomain discovery (subfinder + alterx in intensive mode)
         │
         ▼
-2. DNS resolution (dnsx) + SAN extraction (tlsx) → new hostnames → back to step 2
+2. DNS resolution (dnsx)
         │
         ▼
 3. IP deduplication + CDN/WAF detection (cdncheck)
@@ -25,10 +25,13 @@ Runs as a [Scaleway Serverless Job](https://www.scaleway.com/en/serverless-jobs/
 4. Port scan (TCP connect) — top 1000 per unique IP, 80/443 only for CDN IPs
         │
         ▼
-5. Web detection (httpx) — HTTP + HTTPS on every open port
+5. SAN extraction (tlsx) — only on hosts with port 443 open → new hostnames → DNS + CDN + port scan
         │
         ▼
-6. Push to API (/api/ingest/recon) — per hostname as completed
+6. Web detection (httpx) — HTTP + HTTPS on every open port
+        │
+        ▼
+7. Push to API (/api/ingest/recon) — per hostname as completed
 ```
 
 ## Quick start
@@ -70,6 +73,8 @@ Set `MODE=intensive` and provide `WORDLIST_URL` to enable.
 | `SUBFINDER_CONFIG` | no | Path to subfinder provider-config.yaml (API keys) |
 | `JOB_TIMEOUT` | no | Job timeout duration (default: `4h`, intensive: `8h`) |
 | `DNS_WORKERS` | no | Concurrent DNS resolution workers (default: `20`) |
+| `TLS_WORKERS` | no | Concurrent TLS/SAN extraction workers (default: `50`) |
+| `PORT_SCAN_WORKERS` | no | Concurrent port scan workers (default: `500`) |
 | `LOG_LEVEL` | no | `debug` for verbose output (default: `info`) |
 
 </details>
