@@ -2,9 +2,11 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/jomar/recon/config"
 	"github.com/jomar/recon/push"
@@ -81,6 +83,10 @@ func resolveHosts(ctx context.Context, client *dnsx.DNSX, hostnames []string, wo
 	jobs := make(chan string, len(hostnames))
 	results := make(chan dnsResult, len(hostnames))
 
+	total := len(hostnames)
+	var done atomic.Int64
+	var resolvedCount atomic.Int64
+
 	// Start workers
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -90,9 +96,22 @@ func resolveHosts(ctx context.Context, client *dnsx.DNSX, hostnames []string, wo
 			for fqdn := range jobs {
 				if ctx.Err() != nil {
 					results <- dnsResult{unresolved: fqdn}
+					done.Add(1)
 					continue
 				}
-				results <- resolveOne(client, fqdn)
+				r := resolveOne(client, fqdn)
+				if r.host != nil {
+					resolvedCount.Add(1)
+				}
+				results <- r
+				if d := done.Add(1); d%1000 == 0 {
+					slog.Info("DNS resolution progress",
+						"done", d,
+						"total", total,
+						"resolved", resolvedCount.Load(),
+						"progress", fmt.Sprintf("%.1f%%", float64(d)/float64(total)*100),
+					)
+				}
 			}
 		}()
 	}
