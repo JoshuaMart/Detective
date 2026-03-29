@@ -52,7 +52,7 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 			fullPorts = append(fullPorts, p)
 		}
 	} else {
-		fullPorts = parseNmapTop1000()
+		fullPorts = top30Ports
 	}
 	cdnPorts := []int{80, 443}
 
