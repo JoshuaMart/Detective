@@ -2,11 +2,13 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jomar/recon/config"
@@ -50,7 +52,7 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 			fullPorts = append(fullPorts, p)
 		}
 	} else {
-		fullPorts = parseNmapTop1000()
+		fullPorts = top30Ports
 	}
 	cdnPorts := []int{80, 443}
 
@@ -74,6 +76,9 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 	jobs := make(chan portJob, workers)
 	results := make(chan portJob, workers)
 
+	var probesDone atomic.Int64
+	var openFound atomic.Int64
+
 	// Start global worker pool
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -86,9 +91,19 @@ func ScanPorts(ctx context.Context, cfg *config.Config, hosts []ResolvedHost) ([
 				}
 				addr := net.JoinHostPort(j.ip, strconv.Itoa(j.port))
 				conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+				done := probesDone.Add(1)
 				if err == nil {
 					_ = conn.Close()
+					openFound.Add(1)
 					results <- j
+				}
+				if done%10000 == 0 {
+					slog.Info("port scan progress",
+						"probes_done", done,
+						"total_probes", totalJobs,
+						"open_ports", openFound.Load(),
+						"progress", fmt.Sprintf("%.1f%%", float64(done)/float64(totalJobs)*100),
+					)
 				}
 			}
 		}()
